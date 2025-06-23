@@ -35,6 +35,7 @@ def run_batch_pipeline():
     else:
         print(payload["message"])
 
+    article_store.save()
     chunk_store.save()
     narrative_store.save()
 

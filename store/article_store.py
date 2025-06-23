@@ -20,8 +20,20 @@ class ArticleStore:
         return list(self.store.keys())
     
     def to_dict(self):
-        return {aid: vars(article) for aid, article in self.store.items()}
+        def serialize(obj):
+            if isinstance(obj, dict):
+                return {k: serialize(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [serialize(v) for v in obj]
+            elif hasattr(obj, 'tolist'):
+                return obj.tolist()
+            else:
+                return obj
 
+        return {
+            aid: {k: serialize(v) for k, v in vars(article).items()}
+            for aid, article in self.store.items()
+        }
     def save(self, path='article_store.json'):
         import json
         with open(path, 'w') as f:
