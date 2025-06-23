@@ -1,0 +1,7 @@
+/worldwatchenv
+/.env
+__pycache__
+chunk_store.json
+narrative_store.json
+data/test_data.json
+agents/data/test_data.json

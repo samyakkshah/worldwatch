@@ -1,0 +1,35 @@
+# FastAPI + Runtime
+fastapi
+uvicorn[standard]
+
+# Scraping
+eventregistry
+
+# LangChain stack (fully synced)
+langchain
+langchain-core
+langchain-community
+langchain-ollama
+langchain-text-splitters
+langsmith
+
+# Ollama
+ollama
+
+# LlamaIndex (kept stable)
+llama-index
+
+# Embedding + Vector
+faiss-cpu
+sentence-transformers
+transformers
+torch
+
+# Infra + Tools
+redis
+python-dotenv
+apscheduler
+aiofiles
+httpx
+requests
+lxml-html-clean
