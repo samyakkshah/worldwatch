@@ -7,18 +7,18 @@ from pipeline.graph import run_pipeline
 
 def run_batch_pipeline():
     chunk_store = ChunkStore()
-    chunk_store.load()
+    chunk_store.load('data/chunk_store.json')
 
     narrative_store = NarrativeStore()
-    narrative_store.load()
+    narrative_store.load('data/narrative_store.json')
 
     article_store = ArticleStore()
-    article_store.load()
+    article_store.load('data/article_store.json')
 
     payload, status = getNews()
     if status == 200:
         articles = payload["articles"]    
-        for new_article in articles[:5]:
+        for new_article in articles[:100]:
 
             article = Article(new_article)
             article_store.add(article)
@@ -35,9 +35,10 @@ def run_batch_pipeline():
     else:
         print(payload["message"])
 
-    article_store.save()
-    chunk_store.save()
-    narrative_store.save()
+    print(f"Narratives created: {len(narrative_store.get_all())}")
+    article_store.save('data/article_store.json')
+    chunk_store.save('data/chunk_store.json')
+    narrative_store.save('data/narrative_store.json')
 
 
 if __name__ == '__main__':

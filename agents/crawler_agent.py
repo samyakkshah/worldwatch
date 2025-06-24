@@ -29,7 +29,7 @@ def getNews(directory="data"):
 
     try:
         articles = []
-        for article in q.execQuery(er, sortBy="date", sortByAsc=False, maxItems=50):
+        for article in q.execQuery(er, sortBy="date", sortByAsc=False, maxItems=500):
             articles.append(article) 
 
         if not os.path.exists(directory):

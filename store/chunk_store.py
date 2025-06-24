@@ -26,7 +26,7 @@ class ChunkStore:
                 all_chunks.append(chunk)
         return all_chunks
     
-    def get_top_k_chunks(self, chunk: Chunk, k:int = 5, threshold:float = 0.75):
+    def get_top_k_chunks(self, chunk: Chunk, k:int = 10, threshold:float = 0.5):
         import heapq
         import numpy as np
         from sklearn.metrics.pairwise import cosine_similarity

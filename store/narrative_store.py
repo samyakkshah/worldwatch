@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 from models.chunk import Chunk
 from models.narrative import Narrative
 
@@ -13,12 +13,21 @@ class NarrativeStore:
     def get(self, narrative_id: str):
         return self.store[narrative_id] if self.exists(narrative_id) else None
 
-    def update(self, narrative_id: str, chunks: List[Chunk], article_id:str):
-        return self.store[narrative_id].update(chunks, article_id)
+    def update(self, narrative_id: str, chunks: List[Chunk], article_source:str, article_id:str, article_image:Optional[str] = None):
+        return self.store[narrative_id].update(chunks, article_source, article_id, article_image)
     
     def get_all(self) -> List[Narrative]:
         return list(self.store.values())
 
+    def update_title(self, narrative_id:str, title: str):
+        self.store[narrative_id].update_title(title)
+
+    def update_summary(self, narrative_id:str, summary: str):
+        self.store[narrative_id].update_summary(summary)
+
+    def update_story_text(self, narrative_id:str, story_text: str):
+        self.store[narrative_id].update_story_text(story_text)
+        
     def exists(self, narrative_id):
         return narrative_id in self.store
     
@@ -35,10 +44,10 @@ class NarrativeStore:
             else:
                 return obj
 
-        return {
-            nid: {k: serialize(v) for k, v in vars(narrative).items()}
-            for nid, narrative in self.store.items()
-        }
+        return [
+            {k: serialize(v) for k, v in vars(narrative).items()}
+            for _, narrative in self.store.items()
+        ]
 
     def save(self, path='narrative_store.json'):
         import json
@@ -51,8 +60,8 @@ class NarrativeStore:
         if os.path.exists(path):
             with open(path, 'r') as f:
                 data = json.load(f)
-            for nid, narrative_data in data.items():
-                self.store[nid] = Narrative.from_dict(narrative_data)
+            for narrative_data in data:
+                self.store[narrative_data["narrative_id"]] = Narrative.from_dict(narrative_data)
 
     def get_top_by_heat(self, k:int):
         import heapq
