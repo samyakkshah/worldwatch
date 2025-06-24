@@ -1,16 +1,36 @@
 from typing import Dict, List
 from models.chunk import Chunk
+from llama_index.core.schema import TextNode
 
 
 class ChunkStore:
     def __init__(self):
         self.store: Dict[str, Chunk] = {}
+        self.nodes: Dict[str, TextNode] = {}
+
+    def create_llama_node(self, chunk:Chunk):
+        return TextNode(
+            text=chunk.text,
+            embedding=chunk.embedding,
+            metadata = {
+                "chunk_id":chunk.chunk_id,
+                "article_id": chunk.article_id,
+                "chunk_order": chunk.chunk_order,
+                "sentiment": chunk.sentiment,
+                "topics": chunk.topics,
+            }
+        )
 
     def add(self, chunk: Chunk):
+        node = self.create_llama_node(chunk)
+        self.nodes[chunk.chunk_id] = node
         self.store[chunk.chunk_id] = chunk
     
     def get(self, chunk_id:str):
         return self.store[chunk_id] if self.exists(chunk_id) else None
+    
+    def get_llama_nodes(self) -> List[TextNode]:
+        return list(self.nodes.values())
     
     def get_by_article(self, article_id:str) -> List[Chunk]:
         all_chunks = []
@@ -49,14 +69,17 @@ class ChunkStore:
 
     def to_dict(self):
         def serialize(obj):
-            if isinstance(obj, dict):
+            if isinstance(obj, set):
+                return list(obj)
+            elif isinstance(obj, dict):
                 return {k: serialize(v) for k, v in obj.items()}
             elif isinstance(obj, list):
                 return [serialize(v) for v in obj]
-            elif hasattr(obj, 'tolist'):
+            elif hasattr(obj, 'tolist'):  # for numpy arrays
                 return obj.tolist()
             else:
                 return obj
+
 
         return {
             cid: {k: serialize(v) for k, v in vars(chunk).items()}

@@ -1,27 +1,37 @@
 from typing import List, Dict, Any, Optional
 from langgraph.graph import StateGraph, END
 
-from agents.reporter_agent import reporter
+# FAISS + Llamaindex
+from llama_index.vector_stores.faiss import FaissVectorStore
+from llama_index.core import VectorStoreIndex
+
+# Models
 from models.article import Article
 from models.chunk import Chunk
 from models.narrative import Narrative
+
+# Stores
 from store.chunk_store import ChunkStore
 from store.narrative_store import NarrativeStore
+
+# Processing
 from .chunker import semantic_chunking
 from .tagger import tagger
 
 # Agents
+from agents.reporter_agent import reporter
 from agents.decider_agent import decider
 from agents import title_generator, summary_agent, story_text_agent
 
 class FlowState:
-    def __init__(self, article: Article, chunk_store: ChunkStore, narrative_store: NarrativeStore):
+    def __init__(self, article: Article, chunk_store: ChunkStore, narrative_store: NarrativeStore, index: VectorStoreIndex):
         self.article: Article = article
         self.chunk_store = chunk_store
         self.current_chunks: List[Chunk] = []
         self.narrative_store = narrative_store
         self.decision: str = ''
         self.narrative_id: str = ''
+        self.faiss_index: Optional[VectorStoreIndex] = index
     
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -31,6 +41,7 @@ class FlowState:
             "narrative_store": self.narrative_store,
             "decision": self.decision,
             "narrative_id": self.narrative_id,
+            "faiss_index": self.faiss_index
         }
     
     @classmethod
@@ -43,6 +54,7 @@ class FlowState:
         state.narrative_store = data["narrative_store"]
         state.decision = data["decision"]
         state.narrative_id = data["narrative_id"]
+        state.faiss_index = data["faiss_index"]
         return state
 
 # Wrapper functions that handle dict <-> class conversion
@@ -57,10 +69,26 @@ def chunker_node(state_dict: Dict[str, Any]) -> Dict[str, Any]:
 
 def decider_node(state_dict: Dict[str, Any]) -> Dict[str, Any]:
     state = FlowState.from_dict(state_dict)
+
+    if not state.faiss_index:
+        raise ValueError("FAISS index not found in state")
     
-    result = decider(state.current_chunks, state.chunk_store, state.narrative_store)
+    relevant_chunks: List[List[Chunk]] = []
+    retriever = state.faiss_index.as_retriever(similarity_top_k=5)
+    for chunk in state.current_chunks:
+        results = retriever.retrieve(chunk.text)
+        chunk_ids = [res.metadata["chunk_id"] for res in results]
+        matched_chunks = [state.chunk_store.get(cid) for cid in chunk_ids if state.chunk_store.exists(cid)]
+        filtered_chunks = [chunk for chunk in matched_chunks if chunk is not None]
+        relevant_chunks.append(filtered_chunks)
+    result = decider(chunks=state.current_chunks,
+    chunk_store=state.chunk_store,
+    narrative_store=state.narrative_store,
+    similar_chunks=relevant_chunks)
     state.decision = result['decision']
+
     print(f'Decision: {state.decision}')
+    
     if result['decision'] == 'attach':
         state.narrative_id = result['narrative_id']
         narrative = state.narrative_store.get(state.narrative_id)
@@ -92,7 +120,7 @@ def attach_node(state_dict: Dict[str, Any]) -> Dict[str, Any]:
     for chunk in state.current_chunks:
         chunk.narrative_id = state.narrative_id
         state.chunk_store.add(chunk)
-
+    state.current_chunks = state.chunk_store.get_by_narrative(state.narrative_id)
     state.chunk_store.save('data/chunk_store.json')
     state.narrative_store.save('data/narrative_store.json')
     
@@ -155,6 +183,7 @@ def build_graph():
         narrative_store: NarrativeStore
         decision: str
         narrative_id: str
+        faiss_index: Optional[VectorStoreIndex]
     
     graph = StateGraph(StateDict)
 
@@ -186,9 +215,9 @@ def build_graph():
 
     return graph.compile()
 
-def run_pipeline(article: Article, chunk_store: ChunkStore, narrative_store: NarrativeStore):
+def run_pipeline(article: Article, chunk_store: ChunkStore, narrative_store: NarrativeStore, index: VectorStoreIndex):
     # Create your class instance
-    state = FlowState(article, chunk_store, narrative_store)
+    state = FlowState(article, chunk_store, narrative_store, index)
     
     # Convert to dict for LangGraph
     initial_state = state.to_dict()

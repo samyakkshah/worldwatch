@@ -59,5 +59,6 @@ class Chunk:
             'chunk_order': self.chunk_order,
             'text': self.text,
             'embedding': serialize(self.embedding),
-            'sentiment': serialize(self.sentiment)
+            'sentiment': serialize(self.sentiment),
+            'topics': serialize(self.topics)
         }

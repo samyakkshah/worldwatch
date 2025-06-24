@@ -1,6 +1,9 @@
 from datetime import datetime, timezone
 from typing import List, Optional, Set
 from uuid import uuid4
+
+from collections import defaultdict
+import numpy as np
 from models.chunk import Chunk
 
 class Narrative():
@@ -17,10 +20,20 @@ class Narrative():
         self.view_points = "pending"
         self.images: Set[str] = set([article_image]) if article_image else set()
         self.story_text: str = ''
-        sentiment_scores = [chunk.sentiment for chunk in chunks]
-        self.sentiment_trend = sum(sentiment_scores)/len(sentiment_scores)
-        
-        self.topic = "pending"
+        sentiment_scores = [s for s in (chunk.sentiment for chunk in chunks) if s is not None]
+        self.sentiment_trend = sum(sentiment_scores) / len(sentiment_scores) if sentiment_scores else 0.0
+
+        embeddings = [chunk.embedding for chunk in chunks if chunk.embedding is not None]
+        self.embedding = np.mean(embeddings, axis=0) if embeddings else np.zeros(384)
+
+        merged_topics = defaultdict(set)
+        for chunk in chunks:
+            for label, values in chunk.topics.items():
+                merged_topics[label].update(values)
+
+        self.topic = {label: list(values) for label, values in merged_topics.items()}
+
+
         self.decay = 3
         self.report: str = ''
     
@@ -30,11 +43,33 @@ class Narrative():
         incoming = {chunk.chunk_id for chunk in chunks}
         self.chunks = list(existing.union(incoming))
         self.sources.append(article_source)
-        sentiment_scores = [chunk.sentiment for chunk in chunks]
-        self.sentiment_trend = (self.sentiment_trend + sum(sentiment_scores)/len(sentiment_scores))/2
+        sentiment_scores = [s for s in (chunk.sentiment for chunk in chunks) if s is not None]
+        new_sentiment = sum(sentiment_scores) / len(sentiment_scores) if sentiment_scores else 0.0
+        self.sentiment_trend = (self.sentiment_trend + new_sentiment) / 2
+
+        old_embedding = self.embedding
+        new_embeddings = [chunk.embedding for chunk in chunks if chunk.embedding is not None]
+        if old_embedding is not None and new_embeddings:
+            combined = [old_embedding] + new_embeddings
+            self.embedding = np.mean(combined, axis=0)
+
+
         self.heat_score +=1
         self.decay+=3
-        if article_image:self.images.add(article_image) 
+        if article_image:self.images.add(article_image)
+
+        merged_topics = defaultdict(set)
+        # Load existing topics
+        for label, values in self.topic.items():
+            merged_topics[label].update(values)
+        # Merge new chunk topics
+        for chunk in chunks:
+            for label, values in chunk.topics.items():
+                merged_topics[label].update(values)
+
+        self.topic = {label: list(vals) for label, vals in merged_topics.items()}
+
+        
         self.last_updated_at = datetime.now(timezone.utc).isoformat()
 
     def update_title(self, title:str):
@@ -48,6 +83,8 @@ class Narrative():
 
     def update_story_text(self, story_text:str):
         self.story_text = story_text
+
+        
     @classmethod
     def from_dict(cls, data: dict):
         obj = cls.__new__(cls)
@@ -75,6 +112,7 @@ class Narrative():
             "last_updated_at": serialize(self.last_updated_at),
             "source_article_ids": serialize(self.source_article_ids),
             "chunks": serialize(self.chunks),
+            "embeddings": serialize(self.embedding),
             "heat_score": serialize(self.heat_score),
             "view_points": serialize(self.view_points),
             "images": list(serialize(self.images)),  # Convert set to list
@@ -84,3 +122,4 @@ class Narrative():
             "report": self.report,
             "sources": self.sources
         }
+    
